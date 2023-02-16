@@ -1,30 +1,29 @@
-use glob::glob_with;
-use glob::MatchOptions;
+use clap::Parser;
 use std::path::PathBuf;
 use std::process::Command;
-use structopt::StructOpt;
+use walkdir::WalkDir;
 
-const OUTPUT_SUFFIX: &str = "_compressed.mp4";
+const OUTPUT_EXTENSION: &str = "compressed.mp4";
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "video_compress", about = "Compress videos recursively.")]
-struct Opt {
-    #[structopt(long = "delete")]
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long = "delete")]
     delete: bool,
 
-    input: String,
+    #[arg(short = 'i', long = "input")]
+    input: PathBuf,
 
-    #[structopt(long = "format", default_value = ".mp4")]
-    format: String,
+    #[arg(long = "extension", default_value = "mp4")]
+    extension: String,
 }
 
 fn call_ffmpeg(in_filename: PathBuf) {
     let mut out_filename = in_filename.clone();
-    out_filename.set_extension(OUTPUT_SUFFIX);
+    out_filename.set_extension(OUTPUT_EXTENSION);
     Command::new("ffmpeg")
-        .args(&[
+        .args([
             "-i",
-            &in_filename.to_str().unwrap(),
+            in_filename.to_str().unwrap(),
             "-c:v",
             "libx265",
             "-crf",
@@ -33,33 +32,23 @@ fn call_ffmpeg(in_filename: PathBuf) {
             "aac",
             "-b:a",
             "128k",
-            &out_filename.to_str().unwrap(),
+            out_filename.to_str().unwrap(),
         ])
         .spawn()
         .expect("failed to execute process");
 }
 
 fn main() {
-    let args = Opt::from_args();
+    let args = Args::parse();
 
-    let options = MatchOptions {
-        case_sensitive: false,
-        require_literal_separator: false,
-        require_literal_leading_dot: false,
-    };
+    let walker = WalkDir::new(&args.input)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.path().extension() == Some(args.extension.as_ref()));
 
-    let path_to_search = format!(
-        "{initial_path}/**/*{format}",
-        initial_path = args.input,
-        format = args.format
-    );
-
-    for entry in glob_with(&path_to_search, options).unwrap() {
-        if let Ok(path) = entry {
-            call_ffmpeg(path);
-            if args.delete {
-                // remove file
-            }
-        }
+    for entry in walker {
+        println!("Processing: {}", entry.path().display());
+        call_ffmpeg(entry.into_path());
     }
 }
