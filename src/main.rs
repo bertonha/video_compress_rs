@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 
@@ -7,35 +7,37 @@ const OUTPUT_EXTENSION: &str = "compressed.mp4";
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[arg(long = "delete")]
-    delete: bool,
-
-    #[arg(short = 'i', long = "input")]
+    #[arg()]
     input: PathBuf,
-
     #[arg(long = "extension", default_value = "mp4")]
     extension: String,
+    #[arg(long = "delete")]
+    delete: bool,
 }
 
-fn call_ffmpeg(in_filename: PathBuf) {
-    let mut out_filename = in_filename.clone();
-    out_filename.set_extension(OUTPUT_EXTENSION);
-    Command::new("ffmpeg")
-        .args([
-            "-i",
-            in_filename.to_str().unwrap(),
-            "-c:v",
-            "libx265",
-            "-crf",
-            "28",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            out_filename.to_str().unwrap(),
-        ])
+fn call_ffmpeg(in_filename: &Path, out_filename: &Path) {
+    println!("Processing: {}", in_filename.display());
+    let mut ffmpeg = Command::new("ffmpeg")
+        .arg("-hide_banner")
+        .arg("-i")
+        .arg(in_filename)
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-preset")
+        .arg("slow")
+        .arg("-crf")
+        .arg("24")
+        .arg("-profile:v")
+        .arg("high")
+        .arg("-c:a")
+        .arg("aac")
+        .arg("-b:a")
+        .arg("128k")
+        .arg(out_filename)
         .spawn()
-        .expect("failed to execute process");
+        .expect("failed to execute ffmpeg");
+
+    ffmpeg.wait().expect("failed to wait on ffmpeg");
 }
 
 fn main() {
@@ -48,7 +50,10 @@ fn main() {
         .filter(|e| e.path().extension() == Some(args.extension.as_ref()));
 
     for entry in walker {
-        println!("Processing: {}", entry.path().display());
-        call_ffmpeg(entry.into_path());
+        let in_filename = entry.path();
+        let mut out_filename = PathBuf::from(in_filename);
+        out_filename.set_extension(OUTPUT_EXTENSION);
+
+        call_ffmpeg(in_filename, out_filename.as_path());
     }
 }
