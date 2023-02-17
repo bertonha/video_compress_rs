@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 
-const OUTPUT_EXTENSION: &str = "compressed.mp4";
+const OUTPUT_TRANSCODE_EXTENSION: &str = "compressed.mp4";
+const OUTPUT_THUMBNAIL_EXTENSION: &str = "thumbnail.jpg";
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -16,9 +17,11 @@ struct Args {
     delete: bool,
     #[arg(long = "use-gpu")]
     use_gpu: bool,
+    #[arg(long = "thumbnail")]
+    thumbnail: bool,
 }
 
-fn call_ffmpeg(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
+fn thanscode_video(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
     let mut ffmpeg = Command::new("ffmpeg")
         .arg("-hide_banner")
         .arg("-i")
@@ -42,6 +45,21 @@ fn call_ffmpeg(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
     ffmpeg.wait().expect("failed to wait on ffmpeg");
 }
 
+fn create_thumbnail(in_filename: &Path, out_filename: &Path) {
+    let mut ffmpeg = Command::new("ffmpeg")
+        .arg("-i")
+        .arg(in_filename)
+        .arg("-vf")
+        .arg("thumbnail,scale=1280:720")
+        .arg("-frames:v")
+        .arg("1")
+        .arg(out_filename)
+        .spawn()
+        .expect("failed to execute ffmpeg");
+
+    ffmpeg.wait().expect("failed to wait on ffmpeg");
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -50,20 +68,31 @@ fn main() {
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .filter(|e| e.path().extension() == Some(args.extension.as_ref()))
-        .filter(|e| !e.file_name().to_string_lossy().ends_with(OUTPUT_EXTENSION));
+        .filter(|e| !e.file_name().to_string_lossy().ends_with(OUTPUT_TRANSCODE_EXTENSION));
 
     for entry in walker {
         let in_filename = entry.path();
-        let mut out_filename = PathBuf::from(in_filename);
-        out_filename.set_extension(OUTPUT_EXTENSION);
 
-        if out_filename.exists() {
+        if args.thumbnail {
+            let mut out_thumbnail_filename = PathBuf::from(in_filename);
+            out_thumbnail_filename.set_extension(OUTPUT_THUMBNAIL_EXTENSION);
+
+            if !out_thumbnail_filename.exists() {
+                println!("Creating thumbnail: {}", in_filename.display());
+                create_thumbnail(in_filename, out_thumbnail_filename.as_path());
+            }
+        }
+
+        let mut out_transcoded_filename = PathBuf::from(in_filename);
+        out_transcoded_filename.set_extension(OUTPUT_TRANSCODE_EXTENSION);
+
+        if out_transcoded_filename.exists() {
             println!("Skipping: {}", in_filename.display());
             continue;
         }
 
         println!("Processing: {}", in_filename.display());
-        call_ffmpeg(in_filename, out_filename.as_path(), args.use_gpu);
+        thanscode_video(in_filename, out_transcoded_filename.as_path(), args.use_gpu);
 
         if args.delete {
             fs::remove_file(in_filename).expect("failed to delete file");
