@@ -14,15 +14,17 @@ struct Args {
     extension: String,
     #[arg(long = "delete")]
     delete: bool,
+    #[arg(long = "use-gpu")]
+    use_gpu: bool,
 }
 
-fn call_ffmpeg(in_filename: &Path, out_filename: &Path) {
+fn call_ffmpeg(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
     let mut ffmpeg = Command::new("ffmpeg")
         .arg("-hide_banner")
         .arg("-i")
         .arg(in_filename)
         .arg("-c:v")
-        .arg("libx264")
+        .arg(if use_gpu {"h264_nvenc"} else {"libx264"})
         .arg("-preset")
         .arg("slow")
         .arg("-crf")
@@ -61,7 +63,7 @@ fn main() {
         }
 
         println!("Processing: {}", in_filename.display());
-        call_ffmpeg(in_filename, out_filename.as_path());
+        call_ffmpeg(in_filename, out_filename.as_path(), args.use_gpu);
 
         if args.delete {
             fs::remove_file(in_filename).expect("failed to delete file");
