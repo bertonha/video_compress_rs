@@ -1,3 +1,4 @@
+use std::fs;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -61,5 +62,9 @@ fn main() {
 
         println!("Processing: {}", in_filename.display());
         call_ffmpeg(in_filename, out_filename.as_path());
+
+        if args.delete {
+            fs::remove_file(in_filename).expect("failed to delete file");
+        }
     }
 }
