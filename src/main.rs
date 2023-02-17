@@ -1,5 +1,5 @@
-use std::fs;
 use clap::Parser;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
@@ -27,7 +27,7 @@ fn thanscode_video(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
         .arg("-i")
         .arg(in_filename)
         .arg("-c:v")
-        .arg(if use_gpu {"h264_nvenc"} else {"libx264"})
+        .arg(if use_gpu { "h264_nvenc" } else { "libx264" })
         .arg("-preset")
         .arg("slow")
         .arg("-crf")
@@ -67,8 +67,19 @@ fn main() {
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
-        .filter(|e| e.path().extension() == Some(args.extension.as_ref()))
-        .filter(|e| !e.file_name().to_string_lossy().ends_with(OUTPUT_TRANSCODE_EXTENSION));
+        .filter(|e| {
+            e.path()
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_lowercase()
+                == args.extension
+        })
+        .filter(|e| {
+            !e.file_name()
+                .to_string_lossy()
+                .ends_with(OUTPUT_TRANSCODE_EXTENSION)
+        });
 
     for entry in walker {
         let in_filename = entry.path();
