@@ -21,7 +21,7 @@ struct Args {
     thumbnail: bool,
 }
 
-fn thanscode_video(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
+fn transcode_video(in_filename: &Path, out_filename: &Path, use_gpu: bool) {
     let mut ffmpeg = Command::new("ffmpeg")
         .arg("-hide_banner")
         .arg("-i")
@@ -103,7 +103,7 @@ fn main() {
         }
 
         println!("Processing: {}", in_filename.display());
-        thanscode_video(in_filename, out_transcoded_filename.as_path(), args.use_gpu);
+        transcode_video(in_filename, out_transcoded_filename.as_path(), args.use_gpu);
 
         if args.delete {
             fs::remove_file(in_filename).expect("failed to delete file");
